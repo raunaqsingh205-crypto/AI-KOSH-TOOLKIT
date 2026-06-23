@@ -1,15 +1,15 @@
-> **Core Development Philosophy:** "Prioritize building a fully functional, secure, end-to-end integration skeleton (UI -> API -> Worker -> DB/S3 -> Polling) with mock scoring results first, ensuring pipeline stability and security before implementing complex calculation engines."
+> **Product Goal:** A user-facing, browser-first web application for automated MIDAS-grade health dataset quality assessment — with a secure multi-tenant backend, async processing pipeline, and a REST API surface that external platforms (AIKosh) can integrate with programmatically.
 
 # OpenAPI Specification
 # AIKosh Dataset Quality Evaluation Toolkit
 
 ---
 
-**Document Version:** 1.0  
-**Status:** Draft  
-**Last Updated:** June 18, 2026  
+**Document Version:** 1.1  
+**Status:** Active  
+**Last Updated:** June 24, 2026  
 **Prepared For:** AIKosh / IndiaAI Mission  
-**References:** PRD v1.0, TDD v1.0  
+**References:** PRD v1.1, TDD v1.1  
 **Classification:** Internal Working Document
 
 ---
@@ -60,13 +60,14 @@
 
 The AIKosh Dataset Quality Evaluation Toolkit exposes a REST API that enables:
 
-- **Dataset custodians** to submit health research datasets for automated MIDAS-inspired quality assessment
+- **Web UI users** to register, login, upload datasets, monitor assessment progress, view quality results, and download reports through a browser interface
+- **Dataset custodians** (via API key) to submit health research datasets programmatically for automated MIDAS-inspired quality assessment
 - **AIKosh platform** to trigger assessments on dataset submission and receive quality metadata via webhook
 - **Reviewers** to retrieve assessment results, reports, and audit logs (administrators manage user states but cannot access dataset results or reports due to privacy boundaries)
 
 The API is asynchronous. Submitting a dataset returns an `assessment_id` immediately. The client either polls the status endpoint or waits for a webhook callback. Processing time is typically under 3 minutes for datasets up to 1GB.
 
-**All request and response bodies are JSON (with dataset files uploaded directly to MinIO/S3 via temporary pre-signed URLs).**
+**Dataset files are uploaded directly to MinIO/S3 via temporary pre-signed URLs. All other request and response bodies are JSON.**
 
 ---
 
@@ -834,7 +835,14 @@ All error responses use this structure.
 | 422 | `validation_error` | Metadata fails schema validation |
 | 429 | `rate_limit_exceeded` | Too many requests |
 
-#### Notes
+> [!IMPORTANT]
+> **Implementation Note — Upload Flow Mismatch:**
+> The documented flow above (pre-signed URL → upload to S3 → POST with `file_key`) is the **target design** specified in this contract.
+> The current backend implementation (`backend/app/api/v1/assess.py`) accepts `multipart/form-data` with the file attached directly.
+> The pre-signed URL endpoint (`POST /api/v1/assess/upload-url`) is **not yet implemented**.
+> Migration to this two-step pre-signed URL flow is required before the first production deployment.
+> Until then, the actual submission endpoint accepts: `Content-Type: multipart/form-data` with fields `file` (binary) and `metadata` (JSON string).
+
 - `estimated_completion_seconds` is a rough estimate based on file size and current queue depth. Do not use as a hard guarantee.
 - The `data_dictionary`, `sop`, `consent_doc`, and `pipeline_script` attachments directly affect Domain 1, 3, 9, and 10 scoring. Submitting them improves score accuracy.
 - The `metadata` field must be a valid JSON string, not a file.
@@ -2378,3 +2386,4 @@ paths:
 | Version | Date | Author | Notes |
 |---|---|---|---|
 | 1.0 | June 18, 2026 | — | Initial OpenAPI specification based on PRD v1.0 and TDD v1.0 |
+| 1.1 | June 24, 2026 | — | Realigned to full-stack app. Updated §1 (API Overview: added web UI users as primary consumer), flagged implementation mismatch in §7.2 (target: pre-signed URL + file_key; current: multipart/form-data — migration required). Updated references to PRD v1.1 and TDD v1.1. |

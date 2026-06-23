@@ -1,13 +1,15 @@
-> **Core Development Philosophy:** "Prioritize building a fully functional, secure, end-to-end integration skeleton (UI -> API -> Worker -> DB/S3 -> Polling) with mock scoring results first, ensuring pipeline stability and security before implementing complex calculation engines."
+> **Product Goal:** A user-facing, browser-first web application for automated MIDAS-grade health dataset quality assessment — with a secure multi-tenant backend, async processing pipeline, and a REST API surface that external platforms (AIKosh) can integrate with programmatically.
+>
+> **Development Philosophy:** Build a fully functional, secure, end-to-end pipeline skeleton first (UI → API → Worker → DB/S3 → Polling), then implement real engines one by one. Stability and security before scoring complexity.
 
 # Technical Design Document
 # AIKosh Dataset Quality Evaluation Toolkit
 
 ---
 
-**Document Version:** 1.0  
-**Status:** Draft  
-**Last Updated:** June 18, 2026  
+**Document Version:** 1.1  
+**Status:** Active  
+**Last Updated:** June 24, 2026  
 **Prepared For:** AIKosh / IndiaAI Mission  
 **References:** PRD_AIKosh_Dataset_Quality_Toolkit v1.0  
 **Classification:** Internal Working Document
@@ -75,7 +77,11 @@ This document is the primary reference for:
 
 ## 2. System Overview
 
-The toolkit is a standalone backend service with a React frontend. It integrates into AIKosh as an external quality-scoring microservice. It is not embedded inside the AIKosh codebase — it runs as a separate deployed service that AIKosh calls via REST API.
+The toolkit is a **browser-first, full-stack web application**. Users authenticate and interact with the system entirely through the Next.js frontend. The FastAPI backend serves as the API layer for both the browser UI (via HttpOnly session cookies) and external integrations like AIKosh (via Bearer API keys). Assessment processing is fully async via Celery workers.
+
+The system is also callable as a standalone REST API by external platforms. AIKosh submits datasets programmatically and receives quality metadata via webhook on assessment completion.
+
+The toolkit is **not** embedded inside the AIKosh codebase — it runs as a separate deployed service.
 
 AIKosh / Web UI
       │
@@ -116,27 +122,43 @@ PostgreSQL (assessment record updated to complete)
 
 ## 3. Technology Stack — Final Decisions with Justification
 
+### Backend
+
 | Layer | Technology | Version | Justification |
 |---|---|---|---|
-| API Framework | FastAPI | 0.111.x | Async-native, auto-generates OpenAPI spec, Pydantic validation built-in, fastest Python web framework |
-| ASGI Server | Uvicorn | 0.29.x | Production ASGI server for FastAPI; supports multiple workers |
-| Task Queue | Celery | 5.4.x | Battle-tested, supports parallel task execution, retry logic, priority queues; well-documented FastAPI integration |
-| Message Broker | Redis | 7.2.x | Used as both Celery broker AND result backend; simpler than RabbitMQ for this scale; in-memory speed |
-| ORM | SQLAlchemy | 2.0.x | Async ORM support in 2.0; Alembic for migrations; industry standard for Python |
-| Database | PostgreSQL | 16.x | JSONB support for evidence/gaps fields; reliable ACID compliance for audit logs; strong indexing |
-| Migrations | Alembic | 1.13.x | Native SQLAlchemy migration tool; version-controlled schema changes |
-| Dataset Profiling | pandas | 2.2.x + ydata-profiling 4.x | pandas for core data ops; ydata-profiling for automated profiling; NumPy for numeric ops |
-| Report Generation (HTML) | Jinja2 | 3.1.x | Template-based HTML report generation; fast and well-maintained |
-| Report Generation (PDF) | WeasyPrint | 62.x | HTML-to-PDF conversion; pure Python, no wkhtmltopdf binary dependency |
-| Object Storage | MinIO (dev) / AWS S3-compatible (prod) | — | S3-compatible API; dataset files and reports stored here, not in DB |
-| Frontend | React | 18.x | Component-based; supports charting libraries needed for radar/gauge visualisations |
-| Charting | Recharts | 2.x | React-native charting; radar chart + line chart + gauge support |
-| Containerisation | Docker | 26.x | All services containerised; consistent environments |
-| Orchestration | Kubernetes | 1.30.x | Production deployment; horizontal scaling of Celery workers |
-| CI/CD | GitHub Actions | — | Automated testing, linting, Docker build, deployment |
-| Monitoring | Flower + Prometheus + Grafana | — | Flower for Celery task monitoring; Prometheus + Grafana for system metrics |
-| Logging | structlog | 24.x | Structured JSON logging; compatible with log aggregation tools |
-| Config Management | Pydantic Settings | 2.x | Environment-variable-based config with type validation |
+| API Framework | **FastAPI** | 0.115.x | Async-native, auto-generates OpenAPI spec, Pydantic validation built-in |
+| ASGI Server | **Uvicorn** | 0.29.x | Production ASGI server for FastAPI; supports multiple workers |
+| Task Queue | **Celery** | 5.4.x | Parallel task execution via `group`; retry logic; priority queues; separate assessment + webhook queues |
+| Message Broker | **Redis** | 7.2.x | Celery broker + result backend + rate limiting store; in-memory speed |
+| ORM | **SQLAlchemy** | 2.0.x | Async ORM; Alembic for migrations; industry standard for Python |
+| Database | **PostgreSQL** | 16.x | JSONB for evidence/gaps; ACID for audit logs; append-only rule enforcement |
+| Migrations | **Alembic** | 1.13.x | Version-controlled schema changes |
+| Dataset Profiling | **pandas + pyarrow** | 2.2.x / 17.x | pandas for data ops; pyarrow for Parquet; sampling for large files |
+| Report Generation (HTML) | **Jinja2** | 3.1.x | Template-based HTML report rendering |
+| Report Generation (PDF) | **WeasyPrint** | 68.x | HTML→PDF inside Docker container; no binary dependencies outside container |
+| Object Storage Client | **boto3** | 1.34.x | S3-compatible; works with MinIO (dev) and AWS S3 (prod) |
+| Auth | **pyjwt + passlib[bcrypt]** | 2.8.x / 1.7.x | JWT session cookies + bcrypt password hashing |
+| Logging | **structlog** | 24.x | Structured JSON logs; per-assessment tracing in Celery workers |
+| Config Management | **Pydantic Settings** | 2.x | Type-validated environment variables |
+| Containerisation | **Docker** | 26.x | All services containerised; consistent environments |
+| Orchestration | **Kubernetes** | 1.30.x | Production deployment; HPA for Celery worker scaling |
+| Monitoring | **Flower + Prometheus + Grafana** | — | Flower for Celery; Prometheus + Grafana for system metrics |
+
+### Frontend (Target Architecture)
+
+> **Note:** The frontend is currently implemented as React 18 + Vite. The entries below represent the **target ideal stack** for migration. See `AGENTS.md §7` for current implementation status.
+
+| Layer | Technology | Version | Justification |
+|---|---|---|---|
+| Framework | **Next.js (App Router)** | 14.x | File-based routing; route groups for `(auth)` vs `(app)`; `layout.tsx` for single-point auth guard; `loading.tsx` per route for polling UX; TypeScript-first |
+| Language | **TypeScript** | 5.x | 15 domain score objects, CQIResult, PRSResult, AssessmentResultResponse are complex types — compile-time safety prevents runtime mismatches |
+| Styling | **Tailwind CSS** | 3.x | Utility-first; consistent design tokens; no CSS specificity conflicts |
+| Components | **shadcn/ui** | latest | Pre-built accessible components (Table, Badge, Form, Dialog, Progress) built on Radix UI + Tailwind; code owned by project — not a versioned dependency |
+| Data Fetching | **TanStack Query** | v5 | Assessment polling (`refetchInterval` until status=complete); caching; loading/error states; replaces manual fetch+useState patterns |
+| Forms | **React Hook Form + Zod** | 7.x / 3.x | 20+ field metadata form; Zod schema mirrors backend `MetadataForm` Pydantic model for shared validation rules |
+| Global State | **Zustand** | 4.x | Auth user state across pages; minimal boilerplate vs. Redux; no provider nesting |
+| Charts | **Recharts** | 2.x | RadarChart (15 domains); RadialBarChart (CQI/PRS gauge) |
+| CI/CD | **GitHub Actions** | — | Automated testing, linting, Docker build, deployment |
 
 ---
 
@@ -265,30 +287,60 @@ aikosh-quality-toolkit/
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── RadarChart.jsx
-│   │   │   ├── CQIGauge.jsx
-│   │   │   ├── PRSGauge.jsx
-│   │   │   ├── ReleaseClassBadge.jsx
-│   │   │   ├── DomainScoreTable.jsx
-│   │   │   ├── GapPanel.jsx
-│   │   │   └── ScoreHistory.jsx
-│   │   ├── pages/
-│   │   │   ├── LoginPage.jsx
-│   │   │   ├── RegisterPage.jsx
-│   │   │   ├── AdminPage.jsx
-│   │   │   ├── UploadPage.jsx
-│   │   │   ├── DashboardPage.jsx
-│   │   │   └── ReportPage.jsx
-│   │   └── api/
-│   │       └── client.js                  # API client
-│   └── Dockerfile
+├── frontend/                              # Target: Next.js 14 App Router + TypeScript + Tailwind
+│   │                                      # Current: React 18 + Vite (migration planned)
+│   ├── app/
+│   │   ├── (auth)/                        # Unauthenticated route group
+│   │   │   ├── login/
+│   │   │   │   └── page.tsx
+│   │   │   └── register/
+│   │   │       └── page.tsx
+│   │   ├── (app)/                         # Auth-protected route group
+│   │   │   ├── layout.tsx                 # SINGLE auth guard — checks session, redirects to /login if unauthenticated
+│   │   │   ├── upload/
+│   │   │   │   └── page.tsx
+│   │   │   ├── dashboard/
+│   │   │   │   └── [id]/
+│   │   │   │       ├── page.tsx
+│   │   │   │       └── loading.tsx        # Skeleton shown while Celery job polls
+│   │   │   ├── report/
+│   │   │   │   └── [id]/
+│   │   │   │       └── page.tsx
+│   │   │   └── admin/
+│   │   │       └── page.tsx               # Admin-only; role check in layout
+│   │   └── layout.tsx                     # Root layout (fonts, QueryClientProvider)
+│   ├── components/
+│   │   ├── ui/                            # shadcn/ui components (owned code, not a dependency)
+│   │   ├── domain-radar-chart.tsx
+│   │   ├── cqi-gauge.tsx
+│   │   ├── prs-gauge.tsx
+│   │   ├── release-badge.tsx
+│   │   ├── domain-score-table.tsx
+│   │   ├── gap-panel.tsx
+│   │   └── score-history.tsx
+│   ├── lib/
+│   │   ├── api/
+│   │   │   └── client.ts                 # Typed API client (fetch + credentials: include)
+│   │   ├── types/
+│   │   │   ├── assessment.ts             # TypeScript types mirroring backend Pydantic schemas
+│   │   │   ├── domain-score.ts
+│   │   │   └── user.ts
+│   │   └── utils.ts
+│   ├── stores/
+│   │   └── auth.ts                       # Zustand auth store (user state)
+│   ├── hooks/
+│   │   ├── use-assessment.ts             # TanStack Query hooks (polling, status)
+│   │   └── use-auth.ts
+│   ├── next.config.ts
+│   ├── tailwind.config.ts
+│   ├── tsconfig.json
+│   ├── Dockerfile                        # Production: node:18-alpine, npm run build && npm start
+│   └── package.json
 │
-├── docker-compose.yml                     # Development environment
+├── AGENTS.md                             # AI agent orientation guide — read first
+├── docker-compose.yml                    # Development environment (7 services)
 ├── docker-compose.prod.yml
-├── k8s/                                   # Kubernetes manifests
+├── k8s/                                  # Kubernetes manifests
 │   ├── api-deployment.yaml
 │   ├── worker-deployment.yaml
 │   ├── postgres-statefulset.yaml
@@ -297,7 +349,8 @@ aikosh-quality-toolkit/
 │
 └── docs/
     ├── PRD_AIKosh_Dataset_Quality_Toolkit.md
-    └── TDD_AIKosh_Dataset_Quality_Toolkit.md  (this document)
+    ├── TDD_AIKosh_Dataset_Quality_Toolkit.md  (this document)
+    └── OpenAPI.md
 ```
 
 ---
@@ -1969,7 +2022,10 @@ services:
     build: ./frontend
     ports: ["3000:3000"]
     environment:
-      REACT_APP_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    # Development: uses `npm run dev` with volume mount for hot reload
+    # Production image: `npm run build && npm start` (Next.js standalone output)
+    # Served via Nginx in production Kubernetes deployment
 
 volumes:
   postgres_data:
@@ -2153,43 +2209,70 @@ domains:
 | Audit log append-only rule | PostgreSQL `CREATE RULE no_delete_audit` | Audit logs must be tamper-evident for government accountability |
 | Equal domain weighting | 1/15 per domain | MIDAS 2.0 public documentation does not specify differential weights |
 | Confidence level per domain | `High` / `Medium` / `Low` field | Distinguishes file-based scoring from metadata-form-reliant scoring; critical for report credibility |
+| Next.js App Router over React + Vite | File-based routing with route groups `(auth)` / `(app)`, auth `layout.tsx`, `loading.tsx` per route | Single-point auth guard eliminates per-page auth checks; `/dashboard/:id` deep links work on first load; `loading.tsx` makes Celery polling UX trivial |
+| TypeScript across entire frontend | TS 5.x with strict mode | 15 domain score objects + CQI/PRS results are complex nested types — compile-time safety prevents runtime `undefined` bugs in production |
+| shadcn/ui over custom component library | Copy-paste components built on Radix UI + Tailwind | Project owns the code; accessible by default; consistent Badge/Table/Form/Dialog components for assessment results UI; no version conflicts |
 
 ---
 
 ## 28. Dependency Versions (Pinned)
 
 ```txt
-# requirements.txt (backend)
-fastapi==0.111.1
+# requirements.txt (backend) — source of truth: backend/requirements.txt
+fastapi==0.115.6
 uvicorn[standard]==0.29.0
-celery[redis]==5.4.0
-redis==5.0.7
-sqlalchemy[asyncio]==2.0.30
-asyncpg==0.29.0
-alembic==1.13.1
 pydantic==2.7.1
-pydantic-settings==2.3.0
+pydantic-settings==2.2.1
+SQLAlchemy==2.0.29
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.13.1
+celery==5.4.0
+redis==5.0.4
 pandas==2.2.2
-numpy==1.26.4
-ydata-profiling==4.9.0
-pyarrow==16.1.0
-openpyxl==3.1.4
-chardet==5.2.0
-boto3==1.34.131
-jinja2==3.1.4
-weasyprint==62.3
+openpyxl==3.1.2
+pyarrow==17.0.0
+Jinja2==3.1.6
+weasyprint==68.0
+boto3==1.34.106
+requests==2.32.4
+PyYAML==6.0.1
 httpx==0.27.0
+flower==2.0.1
+pyjwt==2.8.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.3
+python-multipart==0.0.19
+email-validator==2.1.0
 structlog==24.2.0
-python-multipart==0.0.9
-passlib==1.7.4
-pip-audit==2.7.3
 
 # requirements-dev.txt
-pytest==8.2.2
+pytest==8.2.0
 pytest-asyncio==0.23.7
 pytest-cov==5.0.0
-httpx==0.27.0   # for TestClient
+httpx==0.27.0
 factory-boy==3.3.0
+```
+
+```json
+// package.json (frontend target — Next.js migration)
+{
+  "dependencies": {
+    "next": "^14.2.x",
+    "react": "^18.3.x",
+    "react-dom": "^18.3.x",
+    "@tanstack/react-query": "^5.45.x",
+    "react-hook-form": "^7.52.x",
+    "zod": "^3.23.x",
+    "zustand": "^4.5.x",
+    "recharts": "^2.12.x",
+    "lucide-react": "^0.379.x",
+    "tailwindcss": "^3.4.x",
+    "class-variance-authority": "^0.7.x",
+    "clsx": "^2.1.x",
+    "tailwind-merge": "^2.3.x"
+  }
+}
 ```
 
 ---
@@ -2203,3 +2286,4 @@ factory-boy==3.3.0
 | Version | Date | Author | Notes |
 |---|---|---|---|
 | 1.0 | June 18, 2026 | — | Initial TDD based on PRD v1.0 |
+| 1.1 | June 24, 2026 | — | Realigned to full-stack app architecture. Updated §2 (system overview), §3 (tech stack: Next.js + TS + Tailwind + shadcn/ui + TanStack Query + RHF + Zustand), §4 (directory structure: Next.js App Router), §22.1 (Docker env var fix), §27 (added 3 new design decisions), §28 (synced pinned versions with actual requirements.txt; added frontend package.json target). |

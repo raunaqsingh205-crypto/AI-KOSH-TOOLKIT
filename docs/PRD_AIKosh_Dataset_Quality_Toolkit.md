@@ -1,4 +1,4 @@
-> **Core Development Philosophy:** "Prioritize building a fully functional, secure, end-to-end integration skeleton (UI -> API -> Worker -> DB/S3 -> Polling) with mock scoring results first, ensuring pipeline stability and security before implementing complex calculation engines."
+> **Product Goal:** A user-facing, browser-first web application for automated MIDAS-grade health dataset quality assessment — with a secure multi-tenant backend, async processing pipeline, and a REST API surface that external platforms (AIKosh) can integrate with programmatically.
 
 # Product Requirements Document
 # AIKosh Dataset Quality Evaluation Toolkit
@@ -6,9 +6,9 @@
 
 ---
 
-**Document Version:** 1.0  
-**Status:** Draft  
-**Last Updated:** June 17, 2026  
+**Document Version:** 1.1  
+**Status:** Active  
+**Last Updated:** June 24, 2026  
 **Prepared For:** AIKosh / IndiaAI Mission  
 **Classification:** Internal Working Document
 
@@ -89,7 +89,7 @@
 
 India's national AI ecosystem depends on high-quality, trustworthy health research datasets. The Indian Council of Medical Research (ICMR) has developed MIDAS 2.0 (Metric-based Integrity and Data Assessment System) — a rigorous, evidence-based framework for evaluating health research datasets across 15 quality domains, producing a Composite Quality Index (CQI) and a Privacy-Risk Score (PRS). However, MIDAS 2.0 is a manual, institution-facing process. It cannot be directly integrated into AIKosh — India's national AI dataset repository — in its current form.
 
-This document defines the requirements for the **AIKosh Dataset Quality Evaluation Toolkit**: an automated, API-driven system that operationalises the MIDAS 2.0 framework inside the AIKosh platform. The toolkit enables any user uploading a health research dataset to receive a machine-generated, MIDAS-inspired quality assessment — including domain-level scores, a CQI, a PRS, a release classification, and a full structured report — without requiring manual expert review for every submission.
+This document defines the requirements for the **AIKosh Dataset Quality Evaluation Toolkit**: a **browser-first, full-stack web application** that operationalises the MIDAS 2.0 framework. Dataset custodians log in via the web UI, upload health research datasets, fill in a structured metadata form, and receive a comprehensive quality report across all 15 MIDAS domains — including a CQI, PRS, release classification, and downloadable audit report. AIKosh and other external platforms integrate programmatically via REST API, submitting datasets using API keys and receiving quality metadata via webhook on assessment completion.
 
 The toolkit is not a replacement for ICMR's official MIDAS certification process. It is the **automated pre-assessment and continuous quality layer** that brings MIDAS-grade intelligence into the AIKosh dataset lifecycle.
 
@@ -1239,7 +1239,17 @@ All assumptions are clearly flagged in assessment reports.
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/v1/assess` | POST | Submit dataset for assessment (file + metadata JSON) |
+| `/api/v1/auth/register` | POST | Register new user account |
+| `/api/v1/auth/login` | POST | Login and receive HttpOnly session cookie |
+| `/api/v1/auth/logout` | POST | Clear session cookie |
+| `/api/v1/auth/me` | GET | Get current user profile |
+| `/api/v1/auth/keys` | GET | List active API keys for current user |
+| `/api/v1/auth/keys` | POST | Generate new developer API key |
+| `/api/v1/auth/keys/{key_id}` | DELETE | Revoke API key |
+| `/api/v1/admin/users` | GET | List all users (admin only) |
+| `/api/v1/admin/users/{id}/toggle-active` | POST | Suspend/reactivate user (admin only) |
+| `/api/v1/assess/upload-url` | POST | Request pre-signed S3 upload URL |
+| `/api/v1/assess` | POST | Submit dataset metadata + S3 file key for assessment |
 | `/api/v1/assess/{assessment_id}` | GET | Get assessment status and results |
 | `/api/v1/assess/{assessment_id}/report` | GET | Download full quality report (JSON / HTML / PDF) |
 | `/api/v1/assess/{assessment_id}/audit` | GET | Retrieve full audit log |
@@ -1310,18 +1320,23 @@ All assumptions are clearly flagged in assessment reports.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Technology Stack (recommended):**
+**Technology Stack:**
 
 | Layer | Technology |
 |---|---|
 | API | FastAPI (Python) |
-| Profiling | pandas-profiling / ydata-profiling, pandas, numpy |
+| Frontend | Next.js 14 (App Router) + TypeScript |
+| Styling | Tailwind CSS + shadcn/ui |
+| Data Fetching | TanStack Query v5 |
+| Forms | React Hook Form + Zod |
+| Global State | Zustand |
+| Profiling | pandas 2.2 + pyarrow |
 | Scoring Engine | Python (pure rule-based, no ML dependencies) |
-| Report Generation | Jinja2 (HTML), WeasyPrint (PDF) |
-| Database | PostgreSQL (assessments, audit logs) |
-| Object Storage | S3-compatible (dataset files, reports) |
-| Task Queue | Celery + Redis (async assessment jobs) |
-| Dashboard | React + Recharts / D3.js |
+| Report Generation | Jinja2 (HTML) + WeasyPrint (PDF) |
+| Database | PostgreSQL 16 |
+| Object Storage | S3-compatible (MinIO in dev, AWS S3 in prod) |
+| Task Queue | Celery + Redis |
+| Charts | Recharts |
 | Deployment | Docker + Kubernetes |
 
 ---
@@ -1346,15 +1361,41 @@ All assumptions are clearly flagged in assessment reports.
 
 ### Core Tables
 
-**assessments**
+**users** *(root entity — all other records cascade from here)*
+```
+id (UUID, PK)
+email (VARCHAR, UNIQUE)
+hashed_password (VARCHAR)
+role (ENUM: user/reviewer/admin)
+is_active (BOOLEAN)
+created_at (TIMESTAMPTZ)
+```
+
+**api_keys** *(developer keys, FK → users)*
+```
+key_id (UUID, PK)
+key_hash (VARCHAR, UNIQUE) — SHA-256 hash only; raw key never stored
+key_prefix (VARCHAR) — first 8 chars for display
+user_id (UUID, FK → users.id)
+is_active (BOOLEAN)
+created_at / last_used_at / expires_at (TIMESTAMPTZ)
+```
+
+**assessments** *(FK → users + api_keys)*
 ```
 assessment_id (UUID, PK)
 dataset_id (VARCHAR) — AIKosh dataset identifier
+user_id (UUID, FK → users.id)
+api_key_id (UUID, FK → api_keys.key_id, nullable)
 submission_timestamp (TIMESTAMPTZ)
 completion_timestamp (TIMESTAMPTZ)
 status (ENUM: queued / processing / complete / failed)
 toolkit_version (VARCHAR)
 domain_11_applicable (BOOLEAN)
+s3_file_key (VARCHAR)
+error_message (TEXT)
+error_traceback (TEXT)
+celery_task_id (VARCHAR)
 ```
 
 **domain_scores**
@@ -1383,7 +1424,7 @@ classification_justification (TEXT)
 report_url (VARCHAR)
 ```
 
-**audit_logs**
+**audit_logs** *(append-only — enforced by PostgreSQL rule)*
 ```
 log_id (UUID, PK)
 assessment_id (UUID, FK)
@@ -1391,6 +1432,7 @@ event_type (VARCHAR)
 event_timestamp (TIMESTAMPTZ)
 event_detail (JSONB)
 component (VARCHAR)
+severity (ENUM: INFO / WARNING / ERROR)
 ```
 
 ---
@@ -1558,13 +1600,17 @@ The toolkit is considered ready for deployment when:
 | This PRD | Product Requirements Document (this document) |
 | Quality Assessment Framework Specification | Standalone detailed spec of all 15 domain scoring rules (derived from Section 18) |
 | Technical Design Document (TDD) | System architecture, database schema, API contracts, deployment design |
-| OpenAPI Specification | Machine-readable API contract (YAML) for all endpoints |
+| OpenAPI Specification | Machine-readable API contract for all endpoints |
+| `AGENTS.md` | AI agent orientation guide for any developer or agent picking up the codebase |
+| Authentication System | JWT session cookie auth + bcrypt + Redis rate limiting + API key management |
+| Admin Panel (Next.js) | User list, suspend/reactivate controls (role=admin only) |
 | Assessment Engine (Python) | Rule-based scoring engine for all 15 domains |
 | CQI & PRS Engines (Python) | Formula-based computation modules |
 | Dataset Profiler (Python) | Statistical and structural dataset profiling module |
 | Report Generator | JSON + HTML + PDF report generation module |
 | AIKosh Integration Layer | REST API + webhook client for AIKosh integration |
-| Dashboard (React) | Frontend for quality results visualisation |
+| Dashboard (Next.js + TypeScript) | Frontend for quality results visualisation (Radar chart, CQI/PRS gauges, domain table) |
+| Assessment History Page | Per-user list of all past assessments |
 | Test Suite | Unit + integration + validation tests |
 | Deployment Package | Docker Compose + Kubernetes manifests |
 | User Guide | Documentation for dataset custodians using the toolkit |
@@ -1703,3 +1749,4 @@ The following publicly available datasets are recommended for validating the too
 |---|---|---|---|
 | 0.1 | June 17, 2026 | — | Initial draft based on MIDAS public knowledge extraction and AIKosh platform research |
 | 1.0 | June 17, 2026 | — | First complete version |
+| 1.1 | June 24, 2026 | — | Realigned to full-stack app architecture. Updated §1 (executive summary), §19 (API endpoints table — added auth, admin, upload-url endpoints), §20 (tech stack: Next.js + TS + Tailwind + shadcn/ui), §22 (DB overview: added users and api_keys tables as root entities), §31 (deliverables: added AGENTS.md, auth system, admin panel, assessment history). |
