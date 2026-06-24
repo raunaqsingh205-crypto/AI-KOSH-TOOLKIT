@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-class WebhookService:
+class AIKoshWebhook:
     async def post_quality_metadata(self, webhook_url: str, payload: Dict[str, Any]) -> bool:
         """POSTs assessment results back to the AIKosh platform webhook."""
         if not webhook_url:
@@ -23,4 +23,4 @@ class WebhookService:
             logger.error(f"Failed to post quality metadata to webhook: {e}")
         return False
 
-webhook_service = WebhookService()
+webhook = AIKoshWebhook()

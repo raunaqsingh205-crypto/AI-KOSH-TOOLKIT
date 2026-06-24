@@ -1,15 +1,15 @@
-> **Core Development Philosophy:** "Prioritize building a fully functional, secure, end-to-end integration skeleton (UI -> API -> Worker -> DB/S3 -> Polling) with mock scoring results first, ensuring pipeline stability and security before implementing complex calculation engines."
+> **Product Goal:** "Standalone full-stack web application that is also callable as a REST API by external systems like AIKosh via webhook."
 
 # Metadata Intake Form — Questionnaire Specification
 # AIKosh Dataset Quality Evaluation Toolkit
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Status:** Draft  
-**Last Updated:** June 18, 2026  
+**Last Updated:** June 24, 2026  
 **Prepared For:** AIKosh / IndiaAI Mission  
-**References:** PRD v1.0 (Section 17.1, 18), TDD v1.0, OpenAPI Spec v1.0  
+**References:** PRD v1.1 (Section 17.1, 18), TDD v1.1, OpenAPI Spec v1.1  
 **Classification:** Internal Working Document
 
 ---

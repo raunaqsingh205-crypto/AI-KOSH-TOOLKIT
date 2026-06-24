@@ -8,7 +8,8 @@ def setup_test_db():
     """Initializes schema on the test database."""
     Base.metadata.create_all(bind=sync_engine)
     yield
-    Base.metadata.drop_all(bind=sync_engine)
+    # Keep database tables after tests so dev server / fuzzer can use them.
+    # Base.metadata.drop_all(bind=sync_engine)
 
 @pytest.fixture
 def db_session() -> Generator[Session, None, None]:

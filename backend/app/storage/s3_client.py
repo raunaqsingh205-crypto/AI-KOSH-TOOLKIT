@@ -60,4 +60,38 @@ class S3ClientWrapper:
             logger.error(f"Failed to generate pre-signed URL for {object_key}: {e}")
             raise
 
+    def generate_presigned_upload_url(self, object_key: str, expiration: int = 3600) -> str:
+        """Generates a PUT pre-signed URL for direct client-to-S3 upload."""
+        try:
+            url = self.s3.generate_presigned_url(
+                "put_object",
+                Params={"Bucket": self.bucket, "Key": object_key},
+                ExpiresIn=expiration,
+                HttpMethod="PUT"
+            )
+            return url
+        except Exception as e:
+            logger.error(f"Failed to generate pre-signed upload URL for {object_key}: {e}")
+            raise
+
+    def download_file(self, object_key: str) -> bytes:
+        """Downloads a file from S3 and returns raw bytes."""
+        try:
+            response = self.s3.get_object(Bucket=self.bucket, Key=object_key)
+            return response["Body"].read()
+        except Exception as e:
+            logger.error(f"Failed to download object {object_key} from S3: {e}")
+            raise
+
+    def file_exists(self, object_key: str) -> bool:
+        """Checks if an object exists in S3 without downloading it."""
+        try:
+            self.s3.head_object(Bucket=self.bucket, Key=object_key)
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "404":
+                return False
+            logger.error(f"Error checking if {object_key} exists: {e}")
+            raise
+
 s3_client = S3ClientWrapper()

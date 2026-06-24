@@ -2,6 +2,23 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
 from uuid import UUID
+from app.schemas.metadata_form import MetadataForm
+class UploadUrlRequest(BaseModel):
+    filename: str
+    file_format: str
+
+class UploadUrlResponse(BaseModel):
+    upload_url: str
+    file_key: str
+    assessment_id: UUID
+
+class AssessmentSubmitRequest(BaseModel):
+    file_key: str
+    metadata: MetadataForm
+    data_dictionary_key: Optional[str] = None
+    sop_key: Optional[str] = None
+    consent_doc_key: Optional[str] = None
+    pipeline_script_key: Optional[str] = None
 
 class AssessmentSubmitResponse(BaseModel):
     assessment_id: UUID
@@ -9,6 +26,7 @@ class AssessmentSubmitResponse(BaseModel):
     estimated_completion_seconds: int = 180
     poll_url: str
     submission_timestamp: datetime
+    submitted_at: datetime
 
 class AssessmentStatusResponse(BaseModel):
     assessment_id: UUID

@@ -22,11 +22,20 @@ class MetadataForm(BaseModel):
     num_annotators: Optional[int] = Field(None, ge=1)
     irr_method: Optional[str] = None
     irr_value: Optional[float] = Field(None, ge=0.0, le=1.0)
+    annotator_qualifications: Optional[Literal["clinician", "student", "crowdsourced", "automated", "mixed", "other"]] = None
+    
+    dq_checks_applied: Optional[List[str]] = Field(default_factory=list)
     
     standards_used: Optional[str] = None
     ethics_approval_ref: Optional[str] = None
     consent_type: Optional[Literal["individual", "waiver", "community", "not_applicable"]] = "not_applicable"
     deidentification_method: Optional[str] = None
+    
+    direct_identifiers_present: Optional[List[str]] = Field(default_factory=list)
+    k_anonymity_value: Optional[int] = Field(None, ge=1)
+    location_granularity: Optional[Literal["village", "taluk", "district", "state", "national", "multi_country", "none"]] = None
+    temporal_granularity: Optional[Literal["day", "month", "year", "not_applicable"]] = None
+    rare_condition_flag: bool = False
     
     differential_privacy_applied: bool = False
     dp_epsilon: Optional[float] = Field(None, gt=0.0)
@@ -35,6 +44,15 @@ class MetadataForm(BaseModel):
     persistent_identifier: Optional[str] = None
     license_type: Optional[str] = None
     synthetic_data_pct: Optional[float] = Field(None, ge=0.0, le=100.0)
+    synthetic_utility_evaluated: Optional[bool] = None
+    synthetic_privacy_tested: Optional[bool] = None
+    
+    equity_analysis_performed: bool = False
+    community_engagement: bool = False
+    redressal_mechanism_exists: bool = False
+    dua_required: bool = False
+    named_steward_exists: bool = False
+    dpdp_compliance_status: Optional[Literal["fully_compliant", "partially_compliant", "not_compliant", "not_applicable"]] = None
     
     access_control_method: Optional[str] = None
     linked_model_ids: Optional[List[str]] = Field(default_factory=list)

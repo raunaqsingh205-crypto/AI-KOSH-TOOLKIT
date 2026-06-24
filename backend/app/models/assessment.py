@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Enum, BIGINT, Integer, TIMESTAMP, func, text
+from sqlalchemy import Column, String, Boolean, Enum, BIGINT, Integer, TIMESTAMP, ForeignKey, func, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -10,6 +10,8 @@ class Assessment(Base):
     assessment_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("uuid_generate_v4()"))
     dataset_id = Column(String(255), nullable=False, index=True)
     submitter_id = Column(String(255), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    api_key_id = Column(UUID(as_uuid=True), ForeignKey("api_keys.key_id", ondelete="SET NULL"), nullable=True)
     submission_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)
     completion_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)
     status = Column(Enum("queued", "processing", "complete", "failed", name="assessment_status"), default="queued", server_default=text("'queued'"), nullable=False, index=True)
@@ -21,11 +23,14 @@ class Assessment(Base):
     file_sha256 = Column(String(64), nullable=True)
     s3_file_key = Column(String(500), nullable=True)
     error_message = Column(String, nullable=True)
+    error_traceback = Column(String, nullable=True)
     celery_task_id = Column(String(255), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     # Relationships
+    user = relationship("User", back_populates="assessments")
+    api_key = relationship("ApiKey", back_populates="assessments")
     domain_scores = relationship("DomainScore", back_populates="assessment", cascade="all, delete-orphan")
     result = relationship("AssessmentResult", uselist=False, back_populates="assessment", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="assessment", cascade="all, delete-orphan")

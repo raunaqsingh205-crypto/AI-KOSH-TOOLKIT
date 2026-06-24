@@ -36,6 +36,19 @@ class Settings(BaseSettings):
 
     # Security
     API_KEY_SECRET: str = Field(default="tkt_secret_super_secure_key_12345678")
+    JWT_SECRET: str = Field(default="supersecretjwtsessionkeychangeinproduction123456!")
+    JWT_ALGORITHM: str = Field(default="HS256")
+    JWT_EXPIRY_MINUTES: int = Field(default=43200)
+    CORS_ORIGINS: list[str] = Field(default=[
+        "http://localhost:3000", "http://127.0.0.1:3000",
+        "http://localhost:3001", "http://127.0.0.1:3001"
+    ])
+
+    # Integrations & Thresholds
+    AIKOSH_WEBHOOK_URL: str = Field(default="")
+    AIKOSH_WEBHOOK_SECRET: str = Field(default="")
+    MAX_FILE_SIZE_BYTES: int = Field(default=5368709120)
+    PROFILING_SAMPLE_ROWS: int = Field(default=100000)
 
     model_config = SettingsConfigDict(
         env_file=".env",

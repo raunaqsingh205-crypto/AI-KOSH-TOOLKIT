@@ -51,3 +51,14 @@ postgres_data/
 .agents/
 skills-lock.json
 
+
+# Added by Phase 1
+frontend/dist/
+frontend/.next/
+frontend/node_modules/
+backend/.hypothesis/
+backend/.pytest_cache/
+backend/__pycache__/
+**/__pycache__/
+package.json
+package-lock.json

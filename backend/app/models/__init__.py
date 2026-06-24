@@ -1,4 +1,5 @@
 from app.database import Base
+from app.models.user import User
 from app.models.assessment import Assessment
 from app.models.domain_score import DomainScore
 from app.models.assessment_result import AssessmentResult
@@ -9,6 +10,7 @@ from app.models.api_key import ApiKey
 
 __all__ = [
     "Base", 
+    "User",
     "Assessment", 
     "DomainScore", 
     "AssessmentResult", 

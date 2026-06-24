@@ -56,6 +56,9 @@ services:
       - S3_BUCKET_NAME=aikosh-datasets
       - S3_REGION=us-east-1
       - API_KEY_SECRET=tkt_secret_super_secure_key_12345678
+      - JWT_SECRET=supersecretjwtsessionkeychangeinproduction123456!
+      - AIKOSH_WEBHOOK_URL=
+      - ENVIRONMENT=development
     volumes:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -83,6 +86,9 @@ services:
       - S3_BUCKET_NAME=aikosh-datasets
       - S3_REGION=us-east-1
       - API_KEY_SECRET=tkt_secret_super_secure_key_12345678
+      - JWT_SECRET=supersecretjwtsessionkeychangeinproduction123456!
+      - AIKOSH_WEBHOOK_URL=
+      - ENVIRONMENT=development
     volumes:
       - ./backend:/app
     command: celery -A app.worker.celery_app:celery_app worker -Q assessment -c 4 --loglevel=info
@@ -110,6 +116,9 @@ services:
       - S3_BUCKET_NAME=aikosh-datasets
       - S3_REGION=us-east-1
       - API_KEY_SECRET=tkt_secret_super_secure_key_12345678
+      - JWT_SECRET=supersecretjwtsessionkeychangeinproduction123456!
+      - AIKOSH_WEBHOOK_URL=
+      - ENVIRONMENT=development
     volumes:
       - ./backend:/app
     command: celery -A app.worker.celery_app:celery_app worker -Q webhook -c 2 --loglevel=info
@@ -137,11 +146,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: sh -c "npm install && npm run dev"
+    command: "npm run dev"
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     depends_on:
       - backend
 

@@ -28,11 +28,20 @@ class DatasetMetadata(Base):
     num_annotators = Column(Integer, nullable=True)
     irr_method = Column(String(100), nullable=True)
     irr_value = Column(Numeric(precision=5, scale=3), nullable=True)
+    annotator_qualifications = Column(String(50), nullable=True)
+    
+    dq_checks_applied = Column(JSONB, nullable=True)
     
     standards_used = Column(String(255), nullable=True)
     ethics_approval_ref = Column(String(255), nullable=True)
     consent_type = Column(String(100), nullable=True)
     deidentification_method = Column(String(255), nullable=True)
+    
+    direct_identifiers_present = Column(JSONB, nullable=True)
+    k_anonymity_value = Column(Integer, nullable=True)
+    location_granularity = Column(String(50), nullable=True)
+    temporal_granularity = Column(String(50), nullable=True)
+    rare_condition_flag = Column(Boolean, default=False, server_default=text("false"), nullable=True)
     
     differential_privacy_applied = Column(Boolean, default=False, server_default=text("false"), nullable=True)
     dp_epsilon = Column(Numeric(precision=10, scale=4), nullable=True)
@@ -41,6 +50,15 @@ class DatasetMetadata(Base):
     persistent_identifier = Column(String(500), nullable=True)
     license_type = Column(String(100), nullable=True)
     synthetic_data_pct = Column(Numeric(precision=5, scale=2), nullable=True)
+    synthetic_utility_evaluated = Column(Boolean, nullable=True)
+    synthetic_privacy_tested = Column(Boolean, nullable=True)
+    
+    equity_analysis_performed = Column(Boolean, default=False, server_default=text("false"), nullable=True)
+    community_engagement = Column(Boolean, default=False, server_default=text("false"), nullable=True)
+    redressal_mechanism_exists = Column(Boolean, default=False, server_default=text("false"), nullable=True)
+    dua_required = Column(Boolean, default=False, server_default=text("false"), nullable=True)
+    named_steward_exists = Column(Boolean, default=False, server_default=text("false"), nullable=True)
+    dpdp_compliance_status = Column(String(50), nullable=True)
     access_control_method = Column(String(255), nullable=True)
     linked_model_ids = Column(JSONB, nullable=True)
     

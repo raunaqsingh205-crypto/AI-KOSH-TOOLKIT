@@ -1,12 +1,12 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from typing import Dict, Any, Literal
 from uuid import UUID
 
-class AuditService:
+class AuditLogger:
     @staticmethod
-    def log_event(
-        db: Session,
+    async def log_event(
+        db: AsyncSession,
         assessment_id: UUID,
         event_type: str,
         event_detail: Dict[str, Any],
@@ -22,8 +22,8 @@ class AuditService:
             severity=severity
         )
         db.add(log)
-        db.commit()
-        db.refresh(log)
+        await db.commit()
+        await db.refresh(log)
         return log
 
-audit_service = AuditService()
+audit_logger = AuditLogger()
