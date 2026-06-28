@@ -1,16 +1,19 @@
-import asyncio
 import uuid
 import jwt
+import pytest
 from datetime import datetime, timedelta
 from httpx import AsyncClient
 from sqlalchemy.future import select
 from sqlalchemy import delete, text
 
 from app.main import app
-from app.database import AsyncSessionLocal, async_engine
 from app.config import settings
+from app.database import async_engine
 from app.models.user import User
 from app.models.assessment import Assessment
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 def generate_test_jwt(user_id: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=15)
@@ -18,13 +21,19 @@ def generate_test_jwt(user_id: str) -> str:
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 async def run_security_tests():
+    # Dispose global engine so fresh connections are created on this test's loop
+    await async_engine.dispose()
+
     user_a_id = uuid.uuid4()
     user_b_id = uuid.uuid4()
     admin_id = uuid.uuid4()
     assessment_id = uuid.uuid4()
     
+    test_engine = create_async_engine(settings.ASYNC_DATABASE_URL)
+    TestSessionLocal = sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    
     # 1. Create User A, User B, and Admin in database async
-    async with AsyncSessionLocal() as db:
+    async with TestSessionLocal() as db:
         user_a = User(
             id=user_a_id,
             email="usera@example.com",
@@ -87,7 +96,7 @@ async def run_security_tests():
             
     finally:
         # 3. Clean up database records using session.delete to handle cascading relationships correctly
-        async with AsyncSessionLocal() as db:
+        async with TestSessionLocal() as db:
             # Drop append-only rule temporarily to allow cascade deletion of assessments/audit_logs
             try:
                 await db.execute(text("DROP RULE IF EXISTS no_delete_audit ON audit_logs;"))
@@ -115,9 +124,10 @@ async def run_security_tests():
             except Exception as e:
                 print(f"Error restoring rule: {e}")
             
-        # Dispose of engine to release database connections bound to this loop
-        await async_engine.dispose()
+        # Dispose of local engine to release database connections bound to this loop
+        await test_engine.dispose()
 
-def test_security_isolation_boundaries():
+@pytest.mark.anyio
+async def test_security_isolation_boundaries():
     """Triggers both BOLA and Admin isolation boundary integration tests."""
-    asyncio.run(run_security_tests())
+    await run_security_tests()

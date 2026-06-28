@@ -3,6 +3,7 @@ import json
 import logging
 import tempfile
 import traceback
+from decimal import Decimal
 import yaml
 import pandas as pd
 from uuid import UUID
@@ -33,6 +34,14 @@ from app.engine.domains import DOMAIN_SCORERS
 from app.reports.generator import report_generator
 
 logger = logging.getLogger(__name__)
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
 
 domains_mapping = {
     1: ("1_annotation", "Annotation / Labelling Reliability"),
@@ -302,7 +311,7 @@ def run_assessment(self, assessment_id: str, file_key: str, metadata: Dict[str, 
             }
             
             # Save JSON report
-            json_bytes = json.dumps(report_data, indent=2).encode("utf-8")
+            json_bytes = json.dumps(report_data, indent=2, cls=DecimalEncoder).encode("utf-8")
             json_key = f"reports/{assessment_id}/report.json"
             s3_client.upload_file(json_bytes, json_key, "application/json")
             

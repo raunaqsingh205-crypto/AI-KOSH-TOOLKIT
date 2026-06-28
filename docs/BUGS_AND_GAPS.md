@@ -138,13 +138,29 @@
 
 ### P1.11 `MetadataForm` missing `extra='forbid'` — mass assignment
 
+**FIXED** — `model_config = ConfigDict(extra='forbid')` was already present in the code at time of audit. P1.11 is a false positive.
+
+### P1.13 `MetadataForm` fields not matching Questionnaire required status
+
 | | |
 |---|---|
 | **File** | `backend/app/schemas/metadata_form.py` |
-| **Doc** | Security checklist §3.3.7 |
-| **Code** | No `model_config = ConfigDict(extra='forbid')` — undeclared fields accepted silently by Pydantic |
-| **Impact** | Attacker can inject arbitrary metadata fields that might be saved to DB or processed by scorers |
-| **Fix** | Add `model_config = ConfigDict(extra='forbid')` |
+| **Doc** | Questionnaire marks `license_type` (Q5), `standards_used` (Q18), `deidentification_method` (Q23), `consent_type` (Q29), `access_control_method` (Q33) as required |
+| **Code** | All five were `Optional[str] = None` (consent_type was `Optional[Literal] = "not_applicable"`) |
+| **Impact** | Forms could be submitted without these critical fields, causing downstream scorers to receive `None` for fields they expect to have values |
+| **Fix** | Removed `Optional` from all five. `consent_type` keeps its default `"not_applicable"`. The other four are now truly required (no default). |
+| **Tests** | `tests/questionnaire/test_metadata_form.py::TestRequiredFields` |
+
+### P1.14 `MetadataForm` missing cross-field validators
+
+| | |
+|---|---|
+| **File** | `backend/app/schemas/metadata_form.py` |
+| **Doc** | Questionnaire Q10: age_range_min ≤ age_range_max. Questionnaire Q12: neither date can be in the future. |
+| **Code** | No validators existed for these constraints |
+| **Impact** | Invalid data pairs (e.g. min_age > max_age, future collection dates) would be accepted by the API and stored in DB |
+| **Fix** | Added `validate_age_range` and `validate_future_dates` model validators |
+| **Tests** | `tests/questionnaire/test_metadata_form.py::TestCrossFieldValidators` |
 
 ### P1.12 Celery `webhook` queue not routed in code
 

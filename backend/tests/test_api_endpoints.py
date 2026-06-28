@@ -1,6 +1,6 @@
-import asyncio
 import uuid
 import jwt
+import pytest
 from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlalchemy.future import select
@@ -8,13 +8,16 @@ from sqlalchemy import delete
 from unittest.mock import patch
 
 from app.main import app
-from app.database import AsyncSessionLocal, async_engine
 from app.config import settings
+from app.database import async_engine
 from app.models.user import User
 from app.models.api_key import ApiKey
 from app.models.assessment import Assessment
 
 from app.api.v1.auth import pwd_context
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 def generate_test_jwt(user_id: str, minutes: int = 15) -> str:
     expire = datetime.utcnow() + timedelta(minutes=minutes)
@@ -22,14 +25,20 @@ def generate_test_jwt(user_id: str, minutes: int = 15) -> str:
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 async def run_api_endpoint_tests():
+    # Dispose global engine so fresh connections are created on this test's loop
+    await async_engine.dispose()
+
     user_id = uuid.uuid4()
     admin_id = uuid.uuid4()
     user_email = f"api_test_user_{uuid.uuid4().hex[:6]}@example.com"
     admin_email = f"api_test_admin_{uuid.uuid4().hex[:6]}@example.com"
     
+    test_engine = create_async_engine(settings.ASYNC_DATABASE_URL)
+    TestSessionLocal = sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    
     # 1. Create a regular user and an admin in the database
     hashed_pwd = pwd_context.hash("SecurePassword123!")
-    async with AsyncSessionLocal() as db:
+    async with TestSessionLocal() as db:
         regular_user = User(
             id=user_id,
             email=user_email,
@@ -173,7 +182,11 @@ async def run_api_endpoint_tests():
                         "study_type": "cohort",
                         "target_population": "Adults aged 18-65 with history of type 2 diabetes",
                         "geographic_coverage": "district",
-                        "sensitivity_class": "standard"
+                        "sensitivity_class": "standard",
+                        "license_type": "cc_by_4p0",
+                        "standards_used": "fhir",
+                        "deidentification_method": "anonymization",
+                        "access_control_method": "role_based"
                     }
                 })
                 assert submit_resp.status_code == 202
@@ -187,7 +200,7 @@ async def run_api_endpoint_tests():
     finally:
         try:
             # Clean up users & assessments with append-only rule bypass
-            async with AsyncSessionLocal() as db:
+            async with TestSessionLocal() as db:
                 from sqlalchemy import text
                 try:
                     await db.execute(text("DROP RULE IF EXISTS no_delete_audit ON audit_logs;"))
@@ -206,9 +219,10 @@ async def run_api_endpoint_tests():
                 except Exception:
                     pass
         finally:
-            await async_engine.dispose()
+            await test_engine.dispose()
 
+@pytest.mark.anyio
 @patch("app.api.v1.auth.enforce_auth_rate_limit")
-def test_api_endpoints_suite(mock_rate_limit):
+async def test_api_endpoints_suite(mock_rate_limit):
     """Integration test suite covering Auth, Admin, and Assessment APIs."""
-    asyncio.run(run_api_endpoint_tests())
+    await run_api_endpoint_tests()

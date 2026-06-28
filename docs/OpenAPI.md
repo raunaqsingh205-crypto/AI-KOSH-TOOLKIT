@@ -188,17 +188,17 @@ Submitted inside the JSON request body under the key "metadata" in `POST /api/v1
 | `num_annotators` | integer | ❌ | Number of annotators used |
 | `irr_method` | string | ❌ | Inter-rater reliability method, e.g. `"Cohen's Kappa"` |
 | `irr_value` | number | ❌ | IRR metric value, e.g. `0.82` |
-| `standards_used` | string | ❌ | e.g. `"FHIR R4"`, `"ICD-10"`, `"SNOMED CT"`, `"custom"` |
+| `standards_used` | string | ✅ | e.g. `"FHIR R4"`, `"ICD-10"`, `"SNOMED CT"`, `"custom"` |
 | `ethics_approval_ref` | string | ❌ | Ethics committee reference number |
-| `consent_type` | string (enum) | ❌ | `individual` \| `waiver` \| `community` \| `not_applicable` |
-| `deidentification_method` | string | ❌ | Description of de-identification applied |
+| `consent_type` | string (enum) | ✅ | `individual` \| `waiver` \| `community` \| `not_applicable` |
+| `deidentification_method` | string | ✅ | Description of de-identification applied |
 | `differential_privacy_applied` | boolean | ❌ | Whether Differential Privacy was applied (default: `false`) |
 | `dp_epsilon` | number | ❌ | DP epsilon value if `differential_privacy_applied` is `true`. Must be > 0 |
 | `sensitivity_class` | string (enum) | ✅ | `standard` \| `high_stigma` \| `critical` |
 | `persistent_identifier` | string | ❌ | DOI or accession number, e.g. `"10.5281/zenodo.1234567"` |
-| `license_type` | string | ❌ | e.g. `"CC BY 4.0"`, `"CC BY-NC 4.0"`, `"restricted"` |
+| `license_type` | string | ✅ | e.g. `"CC BY 4.0"`, `"CC BY-NC 4.0"`, `"restricted"` |
 | `synthetic_data_pct` | number | ❌ | Percentage of synthetic data in dataset (0–100). `0` or absent = Domain 11 N/A |
-| `access_control_method` | string | ❌ | Description of access controls in place |
+| `access_control_method` | string | ✅ | Description of access controls in place |
 | `linked_model_ids` | array of strings | ❌ | AIKosh or HuggingFace model IDs linked to this dataset |
 | `data_dictionary_uploaded` | boolean | ❌ | Whether a data dictionary was uploaded as an attachment (default: `false`) |
 | `provenance_pipeline_available` | boolean | ❌ | Whether a pipeline script was uploaded (default: `false`) |
@@ -217,6 +217,8 @@ Submitted inside the JSON request body under the key "metadata" in `POST /api/v1
 - `irr_value` must be between 0 and 1
 - `num_annotators` must be ≥ 1 if provided
 - `collection_end_date` must be ≥ `collection_start_date` if both provided
+- `age_range_max` must be ≥ `age_range_min` if both provided
+- Neither `collection_start_date` nor `collection_end_date` can be a future date
 
 **Example:**
 ```json

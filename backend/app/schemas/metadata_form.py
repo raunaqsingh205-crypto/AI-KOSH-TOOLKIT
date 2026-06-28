@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Literal
-from datetime import date
+from datetime import date, timezone
 
 class MetadataForm(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -29,10 +29,10 @@ class MetadataForm(BaseModel):
     
     dq_checks_applied: Optional[List[str]] = Field(default_factory=list)
     
-    standards_used: Optional[str] = None
+    standards_used: str
     ethics_approval_ref: Optional[str] = None
-    consent_type: Optional[Literal["individual", "waiver", "community", "not_applicable"]] = "not_applicable"
-    deidentification_method: Optional[str] = None
+    consent_type: Literal["individual", "waiver", "community", "not_applicable"] = "not_applicable"
+    deidentification_method: str
     
     direct_identifiers_present: Optional[List[str]] = Field(default_factory=list)
     k_anonymity_value: Optional[int] = Field(None, ge=1)
@@ -45,7 +45,7 @@ class MetadataForm(BaseModel):
     
     sensitivity_class: Literal["standard", "high_stigma", "critical"]
     persistent_identifier: Optional[str] = None
-    license_type: Optional[str] = None
+    license_type: str
     synthetic_data_pct: Optional[float] = Field(None, ge=0.0, le=100.0)
     synthetic_utility_evaluated: Optional[bool] = None
     synthetic_privacy_tested: Optional[bool] = None
@@ -57,7 +57,7 @@ class MetadataForm(BaseModel):
     named_steward_exists: bool = False
     dpdp_compliance_status: Optional[Literal["fully_compliant", "partially_compliant", "not_compliant", "not_applicable"]] = None
     
-    access_control_method: Optional[str] = None
+    access_control_method: str
     linked_model_ids: Optional[List[str]] = Field(default_factory=list)
     data_dictionary_uploaded: bool = False
     provenance_pipeline_available: bool = False
@@ -81,4 +81,20 @@ class MetadataForm(BaseModel):
         if self.collection_start_date and self.collection_end_date:
             if self.collection_end_date < self.collection_start_date:
                 raise ValueError("collection_end_date must be on or after collection_start_date")
+        return self
+
+    @model_validator(mode="after")
+    def validate_age_range(self) -> 'MetadataForm':
+        if self.age_range_min is not None and self.age_range_max is not None:
+            if self.age_range_max < self.age_range_min:
+                raise ValueError("age_range_max must be >= age_range_min")
+        return self
+
+    @model_validator(mode="after")
+    def validate_future_dates(self) -> 'MetadataForm':
+        today = date.today()
+        if self.collection_start_date and self.collection_start_date > today:
+            raise ValueError("collection_start_date cannot be in the future")
+        if self.collection_end_date and self.collection_end_date > today:
+            raise ValueError("collection_end_date cannot be in the future")
         return self

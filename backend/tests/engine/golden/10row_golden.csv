@@ -1,0 +1,12 @@
+id,age_years,sex,bmi,hiv_status,cough_2weeks,cough_duration_weeks,fever,night_sweats,weight_loss,hemoptysis,chest_pain,fatigue,loss_of_appetite,who_symptom_screen_count,smear_result,xpert_mtb_detected,xpert_rif_resistance,cxr_result,cxr_abnormal,true_tb_status,tb_type,tb_classification,rifampicin_resistant,treatment_outcome
+1,34,F,23.4,0,0,0,0,0,1,0,0,0,0,1,0,0,N/A,normal,0,0,none,not_tb,0,not_applicable
+2,17,M,19.7,0,1,5,1,1,0,0,0,0,1,3,1,1,not_detected,infiltrate,1,1,pulmonary,smear_positive_ptb,0,cured
+3,42,F,17.0,1,1,7,0,1,1,0,1,1,0,3,1,1,not_detected,normal,0,1,extrapulmonary,extrapulmonary_tb,0,cured
+4,51,F,19.1,0,1,4,0,0,0,0,0,1,0,1,0,0,N/A,normal,0,0,none,not_tb,0,not_applicable
+5,42,M,19.5,0,0,0,0,0,1,0,0,1,0,1,0,0,N/A,normal,0,0,none,not_tb,0,not_applicable
+6,16,F,20.8,0,0,0,0,0,0,0,0,1,1,0,0,0,N/A,normal,0,0,none,not_tb,0,not_applicable
+7,52,F,20.9,0,1,3,0,0,0,0,0,0,0,1,0,0,N/A,other_pathology,1,0,none,not_tb,0,not_applicable
+8,30,F,23.8,0,0,0,0,0,0,0,0,0,0,0,0,0,N/A,normal,0,0,none,not_tb,0,not_applicable
+9,53,M,17.2,0,1,4,1,1,1,0,1,0,0,4,1,1,not_detected,infiltrate,1,1,pulmonary,smear_positive_ptb,0,completed
+10,16,M,27.6,0,0,0,0,0,1,0,1,0,0,1,0,0,N/A,normal,0,0,none,not_tb,0,not_applicable
+11,39,M,27.6,0,1,5,1,0,0,0,0,0,1,2,0,0,N/A,other_pathology,1,0,none,not_tb,0,not_applicable
