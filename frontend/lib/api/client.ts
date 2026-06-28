@@ -24,7 +24,20 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
       const errorData = await response.json();
-      errorMessage = errorData.detail || errorMessage;
+      if (errorData.detail) {
+        if (typeof errorData.detail === "string") {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail
+            .map((err: any) => {
+              const field = Array.isArray(err.loc) ? err.loc.filter((x: any) => x !== "body" && x !== "metadata").join(" -> ") : err.loc;
+              return `${field ? field + ": " : ""}${err.msg || JSON.stringify(err)}`;
+            })
+            .join("; ");
+        } else {
+          errorMessage = JSON.stringify(errorData.detail);
+        }
+      }
     } catch (_) {
       // ignore
     }

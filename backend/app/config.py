@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     # MinIO / S3 Object Storage
     S3_ENDPOINT_URL: str = Field(default="http://minio:9000")
+    S3_PUBLIC_ENDPOINT_URL: str = Field(default="http://localhost:9000")
     S3_ACCESS_KEY: str = Field(default="minioadmin")
     S3_SECRET_KEY: str = Field(default="minioadmin")
     S3_BUCKET_NAME: str = Field(default="aikosh-datasets")

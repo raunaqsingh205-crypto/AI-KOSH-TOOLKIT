@@ -16,6 +16,14 @@ class S3ClientWrapper:
             config=Config(signature_version="s3v4"),
             region_name=settings.S3_REGION
         )
+        self.s3_public = boto3.client(
+            "s3",
+            endpoint_url=getattr(settings, "S3_PUBLIC_ENDPOINT_URL", settings.S3_ENDPOINT_URL),
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_KEY,
+            config=Config(signature_version="s3v4"),
+            region_name=settings.S3_REGION
+        )
         self.bucket = settings.S3_BUCKET_NAME
         self._ensure_bucket_exists()
 
@@ -50,7 +58,7 @@ class S3ClientWrapper:
     def generate_presigned_url(self, object_key: str, expiration: int = 86400) -> str:
         """Generates a pre-signed URL to retrieve a file from S3."""
         try:
-            url = self.s3.generate_presigned_url(
+            url = self.s3_public.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.bucket, "Key": object_key},
                 ExpiresIn=expiration
@@ -63,7 +71,7 @@ class S3ClientWrapper:
     def generate_presigned_upload_url(self, object_key: str, expiration: int = 3600) -> str:
         """Generates a PUT pre-signed URL for direct client-to-S3 upload."""
         try:
-            url = self.s3.generate_presigned_url(
+            url = self.s3_public.generate_presigned_url(
                 "put_object",
                 Params={"Bucket": self.bucket, "Key": object_key},
                 ExpiresIn=expiration,
