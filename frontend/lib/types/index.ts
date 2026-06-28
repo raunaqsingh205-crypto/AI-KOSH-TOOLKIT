@@ -65,6 +65,7 @@ export interface MetadataForm {
   provenance_pipeline_available?: boolean;
   github_repo_url?: string;
   version_format?: string;
+  changelog_provided?: boolean;
   sustainability_info_provided?: boolean;
   feedback_mechanism_exists?: boolean;
 }

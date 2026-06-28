@@ -198,6 +198,21 @@ Submitted inside the JSON request body under the key "metadata" in `POST /api/v1
 | `persistent_identifier` | string | ❌ | DOI or accession number, e.g. `"10.5281/zenodo.1234567"` |
 | `license_type` | string | ✅ | e.g. `"CC BY 4.0"`, `"CC BY-NC 4.0"`, `"restricted"` |
 | `synthetic_data_pct` | number | ❌ | Percentage of synthetic data in dataset (0–100). `0` or absent = Domain 11 N/A |
+| `annotator_qualifications` | string (enum) | ❌ | `clinician` \| `student` \| `crowdsourced` \| `automated` \| `mixed` \| `other` |
+| `dq_checks_applied` | array of strings | ❌ | List of automated DQ checks applied |
+| `direct_identifiers_present` | array of strings | ❌ | List of direct identifiers declared present |
+| `k_anonymity_value` | integer | ❌ | Measured k-anonymity value |
+| `location_granularity` | string (enum) | ❌ | `village` \| `taluk` \| `district` \| `state` \| `national` \| `multi_country` \| `none` |
+| `temporal_granularity` | string (enum) | ❌ | `day` \| `month` \| `year` \| `not_applicable` |
+| `rare_condition_flag` | boolean | ❌ | Whether dataset contains rare medical conditions |
+| `synthetic_utility_evaluated` | boolean | ❌ | Utility evaluation status for synthetic data |
+| `synthetic_privacy_tested` | boolean | ❌ | Empirical privacy testing status for synthetic data |
+| `equity_analysis_performed` | boolean | ❌ | Equity & demographic fairness analysis status |
+| `community_engagement` | boolean | ❌ | Indigenous/community governance engagement |
+| `redressal_mechanism_exists` | boolean | ❌ | Grievance redressal mechanism status |
+| `dua_required` | boolean | ❌ | Data use agreement requirement status |
+| `named_steward_exists` | boolean | ❌ | Named data steward assignment status |
+| `dpdp_compliance_status` | string (enum) | ❌ | `fully_compliant` \| `partially_compliant` \| `not_compliant` \| `not_applicable` |
 | `access_control_method` | string | ✅ | Description of access controls in place |
 | `linked_model_ids` | array of strings | ❌ | AIKosh or HuggingFace model IDs linked to this dataset |
 | `data_dictionary_uploaded` | boolean | ❌ | Whether a data dictionary was uploaded as an attachment (default: `false`) |

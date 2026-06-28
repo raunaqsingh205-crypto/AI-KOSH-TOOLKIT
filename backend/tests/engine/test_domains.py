@@ -396,3 +396,60 @@ def test_domain_15_curation():
     metadata = {"github_repo_url": "http://github.com", "changelog_provided": True}
     scorer = CurationScorer({}, metadata, criteria)
     assert scorer.score().score == 4
+
+from app.engine.domains.base import BaseDomainScorer
+
+class ConcreteScorer(BaseDomainScorer):
+    DOMAIN_NUMBER = 0
+    DOMAIN_NAME = "Test"
+    def score(self):
+        pass
+
+def test_base_domain_scorer_whitespace_sanitation():
+    metadata = {
+        "untrimmed_str": "   tabular   ",
+        "blank_str": "    ",
+        "empty_str": ""
+    }
+    scorer = ConcreteScorer({}, metadata, {})
+    assert scorer._get_clean_str("untrimmed_str") == "tabular"
+    assert scorer._get_clean_str("blank_str") is None
+    assert scorer._get_clean_str("empty_str") is None
+    assert scorer._get_clean_str("non_existent_key") is None
+
+def test_dynamic_yaml_criteria_overrides():
+    # Test D04 representativeness dynamic multi_site_min criteria override
+    metadata = {"geographic_coverage": "national", "num_sites": 3, "sex_distribution": "both"}
+    default_scorer = RepresentativenessScorer({}, metadata, {})
+    assert default_scorer.score().score == 4  # default multi_site_min is 2
+
+    override_criteria = {"thresholds": {"multi_site_min": 5}}
+    override_scorer = RepresentativenessScorer({}, metadata, override_criteria)
+    assert override_scorer.score().score == 2  # num_sites 3 < multi_site_min 5
+
+def test_batch4_newly_wired_metadata_evidence():
+    # D04 age range evidence
+    d04_meta = {"geographic_coverage": "national", "age_range_min": 18, "age_range_max": 65}
+    res_d04 = RepresentativenessScorer({}, d04_meta, {}).score()
+    assert any("Age demographic boundaries documented" in e for e in res_d04.evidence_items)
+
+    # D06 dq_checks_applied evidence
+    d06_meta = {"dq_checks_applied": ["completeness", "range_check"]}
+    res_d06 = AIReadinessScorer({}, d06_meta, {}).score()
+    assert any("Automated data quality checks documented" in e for e in res_d06.evidence_items)
+
+    # D07 direct_identifiers_present evidence
+    d07_meta = {"direct_identifiers_present": ["name", "phone"]}
+    res_d07 = PrivacyScorer({}, d07_meta, {}).score()
+    assert any("Declared direct identifiers in metadata" in e for e in res_d07.evidence_items)
+
+    # D09 collection dates & temporal granularity evidence
+    d09_meta = {"collection_start_date": "2026-01-01", "collection_end_date": "2026-06-01", "temporal_granularity": "month"}
+    res_d09 = ProvenanceScorer({}, d09_meta, {}).score()
+    assert any("Temporal data collection span documented" in e for e in res_d09.evidence_items)
+    assert any("Temporal resolution documented" in e for e in res_d09.evidence_items)
+
+    # D15 feedback_mechanism_exists evidence
+    d15_meta = {"feedback_mechanism_exists": True}
+    res_d15 = CurationScorer({}, d15_meta, {}).score()
+    assert any("User feedback collection & continuous curation mechanism active" in e for e in res_d15.evidence_items)
