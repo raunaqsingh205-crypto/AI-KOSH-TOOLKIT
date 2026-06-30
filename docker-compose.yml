@@ -47,11 +47,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=aikosh_quality
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-redispassword123}@redis:6379/0
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
@@ -67,7 +67,6 @@ services:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --no-server-header
     depends_on:
-      - postgres
       - redis
       - minio
 
@@ -78,11 +77,11 @@ services:
     container_name: tkt_worker_assessment
     restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=aikosh_quality
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-redispassword123}@redis:6379/0
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
@@ -98,7 +97,6 @@ services:
       - ./backend:/app
     command: celery -A app.worker.celery_app:celery_app worker -Q assessment -c 4 --loglevel=info
     depends_on:
-      - postgres
       - redis
       - minio
 
@@ -109,11 +107,11 @@ services:
     container_name: tkt_worker_webhook
     restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=aikosh_quality
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-redispassword123}@redis:6379/0
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
