@@ -33,6 +33,7 @@ export default function UploadPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>("");
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   // Step 8 file states
@@ -79,7 +80,6 @@ export default function UploadPage() {
     temporal_granularity: "month",
     rare_condition_flag: false,
     differential_privacy_applied: false,
-    dp_epsilon: undefined,
     sensitivity_class: "standard",
     persistent_identifier: "",
     license_type: "Restricted — Data Use Agreement required",
@@ -130,25 +130,43 @@ export default function UploadPage() {
   const uploadToS3 = async (file: File): Promise<string> => {
     const ext = file.name.split(".").pop() || "csv";
     setUploadStatus(`Requesting upload slot for ${file.name}...`);
+    setUploadProgress(null);
     const { upload_url, file_key } = await api.post<UploadUrlResponse>(
       "/api/v1/assess/upload-url",
       { filename: file.name, file_format: ext }
     );
     
     setUploadStatus(`Uploading ${file.name} to storage...`);
-    const uploadResponse = await fetch(upload_url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type || "application/octet-stream",
-      },
-      body: file,
+    
+    return new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", upload_url);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setUploadProgress(null);
+          resolve(file_key);
+        } else {
+          setUploadProgress(null);
+          reject(new Error(`Failed to upload ${file.name} to S3 object storage (Status Code: ${xhr.status} ${xhr.statusText}).`));
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploadProgress(null);
+        reject(new Error(`Network connection error or CORS block occurred during upload of ${file.name}. Please check your connection and S3 CORS policies.`));
+      };
+
+      xhr.send(file);
     });
-
-    if (!uploadResponse.ok) {
-      throw new Error(`Failed to upload ${file.name} to S3 object storage.`);
-    }
-
-    return file_key;
   };
 
   const handleNext = () => {
@@ -179,21 +197,14 @@ export default function UploadPage() {
       }
     }
 
-    // Skip step 3 (Annotation) if dataset has no annotated data
-    if (currentStep === 2 && !hasAnnotatedData) {
-      setCurrentStep(4);
-    } else {
-      setCurrentStep((prev) => Math.min(prev + 1, 8));
-    }
+    // Advance step sequentially
+    setCurrentStep((prev) => Math.min(prev + 1, 8));
   };
 
   const handleBack = () => {
     setErrorMsg("");
-    if (currentStep === 4 && !hasAnnotatedData) {
-      setCurrentStep(2);
-    } else {
-      setCurrentStep((prev) => Math.max(prev - 1, 1));
-    }
+    // Go back sequentially
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -239,6 +250,11 @@ export default function UploadPage() {
       // Combine form data with S3 keys (custom payload)
       const payloadMetadata = {
         ...formData,
+        annotation_methodology: hasAnnotatedData ? formData.annotation_methodology : undefined,
+        num_annotators: hasAnnotatedData ? formData.num_annotators : undefined,
+        irr_value: hasAnnotatedData ? formData.irr_value : undefined,
+        irr_method: hasAnnotatedData ? formData.irr_method : undefined,
+        annotator_qualifications: hasAnnotatedData ? formData.annotator_qualifications : undefined,
         data_dictionary_uploaded: !!dataDictFile || formData.data_dictionary_uploaded,
         provenance_pipeline_available: !!provenanceFile || formData.provenance_pipeline_available,
         linked_model_ids,
@@ -264,6 +280,7 @@ export default function UploadPage() {
       const msg = err instanceof Error ? err.message : "An error occurred during submission.";
       setErrorMsg(msg);
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -821,26 +838,10 @@ export default function UploadPage() {
                       checked={formData.differential_privacy_applied}
                       onChange={(e) => {
                         updateField("differential_privacy_applied", e.target.checked);
-                        if (!e.target.checked) updateField("dp_epsilon", undefined);
                       }}
                       className="rounded border-border bg-background text-accent focus:ring-accent h-5 w-5 cursor-pointer"
                     />
                   </div>
-
-                  {formData.differential_privacy_applied && (
-                    <div className="space-y-2 col-span-2">
-                      <Label htmlFor="dp_epsilon" className="text-foreground font-medium">Privacy Parameter Epsilon (ε) *</Label>
-                      <Input
-                        id="dp_epsilon"
-                        type="number"
-                        step="0.01"
-                        placeholder="e.g. 1.0 (typically 0.1 - 5.0)"
-                        value={formData.dp_epsilon ?? ""}
-                        onChange={(e) => updateField("dp_epsilon", e.target.value ? parseFloat(e.target.value) : undefined)}
-                        className="bg-background border-border"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1029,7 +1030,7 @@ export default function UploadPage() {
                   <div className="flex items-center justify-between p-3 bg-background border border-border rounded-lg">
                     <div>
                       <Label className="text-foreground font-semibold block">Public AI/ML Models Trained</Label>
-                      <span className="text-[11px] text-muted-foreground block">Are there models built from this dataset available on AIKosh/HuggingFace?</span>
+                      <span className="text-[11px] text-muted-foreground block">Are there models built from this dataset available on MIDAS 2.0/HuggingFace?</span>
                     </div>
                     <input
                       type="checkbox"
@@ -1183,9 +1184,25 @@ export default function UploadPage() {
                 </div>
 
                 {isSubmitting && (
-                  <div className="p-4 bg-card border border-border/50 rounded-lg flex items-center gap-3">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent shrink-0"></div>
-                    <span className="text-xs text-foreground font-semibold">{uploadStatus}</span>
+                  <div className="p-4 bg-card border border-border/50 rounded-lg space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent shrink-0"></div>
+                      <span className="text-xs text-foreground font-semibold">{uploadStatus}</span>
+                    </div>
+                    {uploadProgress !== null && (
+                      <div className="space-y-1.5">
+                        <div className="w-full bg-border/40 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${uploadProgress}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground font-medium">
+                          <span>{uploadProgress}% completed</span>
+                          <span>(Do not close this window)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
